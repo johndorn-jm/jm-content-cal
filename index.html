@@ -481,12 +481,75 @@ body { background:var(--bg); color:var(--text); font-family:var(--font-body); fo
   font-family:var(--font-body); transition:all .15s; }
 .csv-export-btn:hover { border-color:var(--text); color:var(--text); }
 #wk-show-lens-btn.lens-on { border-color:var(--text); color:var(--text); font-weight:600; }
-.wk-show-chips { display:none; flex-wrap:wrap; gap:6px; align-items:center; padding:10px 40px 0; }
+.wk-show-chips { display:none; flex-wrap:wrap; gap:6px; align-items:center; padding:10px 0 0; }
 .show-chip.on { background:var(--text); border-color:var(--text); }
 .show-chip-clear { padding:5px 13px; border-radius:20px; font-size:12px; cursor:pointer;
   border:1px solid var(--border-strong); background:var(--surface); color:var(--text-dim);
   font-family:var(--font-body); transition:all .15s; }
 .show-chip-clear:hover { border-color:var(--text); color:var(--text); }
+
+/* ── v52: mobile layout (≤640px only — desktop rules untouched) ── */
+@media (max-width: 640px){
+  /* global chrome */
+  .header { padding:16px 14px 12px; gap:8px 16px; align-items:flex-start; }
+  .header-left h1 { font-size:19px; }
+  .legend { gap:6px 12px; }
+  .legend-item { font-size:11px; }
+  .tabs { padding:0 12px; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+  .tabs::-webkit-scrollbar { display:none; }
+  .tab { padding:11px 12px; font-size:12.5px; white-space:nowrap; flex-shrink:0; }
+  .csv-export-btn { margin:6px 12px 6px 8px; flex-shrink:0; white-space:nowrap; }
+  .view { padding:16px 12px; }
+  .viz-hint, .cal-kbd-hint { display:none; }
+  .viz-chip, .gv-actions button, .show-chip-clear { padding:5px 10px; font-size:11.5px; }
+
+  /* week view */
+  .wk-strip-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:2px; }
+  .wk-strip, .wk-strip-months { min-width:560px; }
+  .wk-head { flex-wrap:wrap; gap:6px 10px; padding:9px 10px; }
+  .wk-dates { min-width:0; font-size:11px; }
+  .wk-chips { flex:1 1 100%; order:10; }
+  .wk-head .wk-meta { margin-left:auto; }
+  .wk-row { flex-wrap:wrap; gap:5px 8px; padding:8px 10px; }
+  .wk-row-title { white-space:normal; flex:1 1 60%; }
+  .wk-row-meta { white-space:normal; text-align:right; }
+  .wk-month-h { flex-wrap:wrap; gap:4px 10px; margin:22px 0 8px; }
+  .show-grid { grid-template-columns:1fr; }
+
+  /* tentpole view */
+  .tp-head { flex-wrap:wrap; gap:6px 8px; }
+  .tp-title { white-space:normal; flex:1 1 60%; }
+  .tp-meta { margin-left:auto; gap:8px; flex-wrap:wrap; }
+  .tp-q-h { flex-wrap:wrap; gap:4px 10px; }
+  .tp-q-meta { margin-left:0; flex-basis:100%; }
+
+  /* calendar view */
+  .cal-topbar { gap:8px; }
+  .cal-title { font-size:19px; min-width:0; }
+  .cal-strip { grid-template-columns:repeat(6,1fr); }
+  .cal-dowbar div { padding:5px 3px; font-size:8px; letter-spacing:.4px; text-align:center; }
+  .cw-nums div { padding:4px 5px 2px; font-size:9.5px; }
+  .cw-lanes { min-height:36px; }
+  .cw-bar { height:18px; line-height:18px; font-size:9px; padding:0 4px; border-radius:3px; }
+  .cal-summary { font-size:10.5px; }
+
+  /* gantt view: slimmer sticky rail so the timeline is actually visible */
+  .gv-side { flex:0 0 168px; width:168px; padding:0 8px; gap:6px; }
+  .gv-grid { left:168px; }
+  .gv-head .gv-side { font-size:13px; }
+  .gv-name { font-size:11px; }
+  .gv-sub { font-size:8.5px; }
+  .gv-side .val-badge { display:none; }
+  .gv-items-inner { padding:8px 12px 10px 24px; }
+
+  /* modals & comments */
+  .modal-overlay { padding:10px; }
+  .modal { max-height:92vh; }
+  .modal-header { padding:14px 14px 12px; }
+  .modal-body { padding:14px 14px 16px; }
+  #commentModalOverlay, #commentPanelOverlay { padding:12px; }
+  #commentFab { bottom:14px; right:14px; padding:8px 14px; font-size:12px; }
+}
 </style>
 </head>
 <body>
