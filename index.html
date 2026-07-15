@@ -473,6 +473,20 @@ body { background:var(--bg); color:var(--text); font-family:var(--font-body); fo
 
 /* expanded-state ring: makes open cards read as one grouped unit */
 .wk-card.open, .tp-card.open { border-color:var(--text); box-shadow:0 0 0 2px var(--text); }
+
+/* ── v51: CSV export + show lens ── */
+.tabs-spacer { flex:1; }
+.csv-export-btn { align-self:center; margin:6px 40px 6px 0; padding:5px 13px; border-radius:20px; font-size:12px;
+  cursor:pointer; border:1px solid var(--border-strong); background:var(--surface); color:var(--text-dim);
+  font-family:var(--font-body); transition:all .15s; }
+.csv-export-btn:hover { border-color:var(--text); color:var(--text); }
+#wk-show-lens-btn.lens-on { border-color:var(--text); color:var(--text); font-weight:600; }
+.wk-show-chips { display:none; flex-wrap:wrap; gap:6px; align-items:center; padding:10px 40px 0; }
+.show-chip.on { background:var(--text); border-color:var(--text); }
+.show-chip-clear { padding:5px 13px; border-radius:20px; font-size:12px; cursor:pointer;
+  border:1px solid var(--border-strong); background:var(--surface); color:var(--text-dim);
+  font-family:var(--font-body); transition:all .15s; }
+.show-chip-clear:hover { border-color:var(--text); color:var(--text); }
 </style>
 </head>
 <body>
@@ -493,6 +507,8 @@ body { background:var(--bg); color:var(--text); font-family:var(--font-body); fo
 <div class="tab" onclick="switchTab('list')">Tentpole View</div>
 <div class="tab" onclick="switchTab('calendar')">Calendar View</div>
 <div class="tab" onclick="switchTab('gantt')">Gantt View</div>
+<div class="tabs-spacer"></div>
+<button class="csv-export-btn" onclick="exportCsv()" title="Download all content data as a CSV (all events, shows, and items — ignores active filters)">Export CSV</button>
 </div>
 <!-- ══════════════ LIST VIEW ══════════════ -->
 <div class="view" id="view-list">
@@ -584,6 +600,7 @@ body { background:var(--bg); color:var(--text); font-family:var(--font-body); fo
 <button onclick="wkCollapseAll()">Collapse all</button>
 </div>
 </div>
+<div class="wk-show-chips" id="wk-show-chips"></div>
 <div class="wk-strip-wrap"><div class="wk-strip" id="wk-strip"></div><div class="wk-strip-months" id="wk-strip-months"></div></div>
 <div id="wk-months"></div>
 </div>
@@ -823,9 +840,11 @@ const TYPE_LABEL_TO_CSS = {
   "Graphic": "ctag-gfx", "Social": "ctag-soc", "YouTube": "ctag-yt", "Pod + YT": "ctag-pod",
   "Live": "ctag-live", "Sponsor Ops": "ctag-ops", "Travel": "ctag-travel", "Idea Bank": "ctag-idea",
 };
-function buildShowGridInline(ev) {
+function buildShowGridInline(ev, lens) {
   const UNVERIFIED_TOOLTIP = "Plausible but hasn't been verified or cleared with anyone yet.";
-  const tiles = ev.shows.map(s => {
+  const showsToRender = (lens && typeof lensActive === 'function' && lensActive())
+    ? ev.shows.filter(s => WK_SHOWS.has(s.name)) : ev.shows;
+  const tiles = showsToRender.map(s => {
     const lk = MODAL_LOGO_MAP[s.name];
     const logoHtml = (lk && LOGOS[lk]) ? `<img class="show-logo" src="${LOGOS[lk]}" alt="${s.name}">` : `<div class="show-logo misc-avatar">${s.name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase()}</div>`;
     const itemsHtml = s.items.map(rawItem => {
@@ -853,7 +872,7 @@ function toggleWeekRow(rowEl, evId) {
   if (rowEl.classList.contains('open')) {
     if (!detail.dataset.built) {
       const ev = EVENTS.find(e => e.id === evId);
-      if (ev) detail.innerHTML = buildShowGridInline(ev);
+      if (ev) detail.innerHTML = buildShowGridInline(ev, true);
       detail.dataset.built = '1';
     }
     detail.style.display = 'block';
@@ -1075,6 +1094,61 @@ function toggleChip(prefix, k){
   state[k] = !state[k];
   document.getElementById(`${prefix}-chip-${k}`).classList.toggle('on', state[k]);
   apply();
+}
+
+// ── v51: show lens (week view only) ──
+const EV_BY_ID = Object.fromEntries(EVENTS.map(e => [e.id, e]));
+const WK_SHOWS = new Set();
+function lensActive(){ return WK_SHOWS.size > 0; }
+function evLensItems(ev){
+  let n = 0;
+  (ev.shows || []).forEach(s => { if (WK_SHOWS.has(s.name)) n += s.items.length; });
+  return n;
+}
+function evPassesLens(ev){ return !lensActive() || evLensItems(ev) > 0; }
+function allShowNames(){
+  return [...new Set(EVENTS.flatMap(ev => (ev.shows || []).map(s => s.name)))].sort((a, b) => a.localeCompare(b));
+}
+function buildShowChips(){
+  const host = document.getElementById('wk-show-chips');
+  host.innerHTML = allShowNames().map(n =>
+    `<span class="viz-chip show-chip${WK_SHOWS.has(n) ? ' on' : ''}" data-show="${n.replace(/"/g, '&quot;')}" onclick="toggleShowChip(this)">${n}</span>`
+  ).join('') + `<button class="show-chip-clear" onclick="clearShowLens()">Clear</button>`;
+}
+function toggleShowLensRow(){
+  const host = document.getElementById('wk-show-chips');
+  host.style.display = (host.style.display === 'flex') ? 'none' : 'flex';
+  updateShowLensBtn();
+}
+function updateShowLensBtn(){
+  const b = document.getElementById('wk-show-lens-btn');
+  if (!b) return;
+  const open = document.getElementById('wk-show-chips').style.display === 'flex';
+  b.textContent = `Filter by show${WK_SHOWS.size ? ` (${WK_SHOWS.size})` : ''} ${open ? '\u25B4' : '\u25BE'}`;
+  b.classList.toggle('lens-on', WK_SHOWS.size > 0);
+}
+function toggleShowChip(el){
+  const n = el.dataset.show;
+  if (WK_SHOWS.has(n)) WK_SHOWS.delete(n); else WK_SHOWS.add(n);
+  el.classList.toggle('on', WK_SHOWS.has(n));
+  onShowLensChange();
+}
+function clearShowLens(){
+  WK_SHOWS.clear();
+  document.querySelectorAll('#wk-show-chips .show-chip').forEach(c => c.classList.remove('on'));
+  onShowLensChange();
+}
+function onShowLensChange(){
+  // invalidate cached detail panels so they rebuild under the current lens
+  document.querySelectorAll('#wk-months .week-row-detail').forEach(d => { d.dataset.built = ''; d.innerHTML = ''; d.style.display = 'none'; });
+  // rebuild detail for rows that are currently open
+  document.querySelectorAll('#wk-months .wk-row.open').forEach(row => {
+    const ev = EV_BY_ID[row.dataset.evId];
+    const detail = row.nextElementSibling;
+    if (ev && detail){ detail.innerHTML = buildShowGridInline(ev, true); detail.dataset.built = '1'; detail.style.display = 'block'; }
+  });
+  updateShowLensBtn();
+  applyWeekFilters();
 }
 
 // ══════════════════════════════════════════════
@@ -1448,7 +1522,7 @@ function buildWeekView(){
     // header: number, dates, tentpole chips, counts, comment, chevron
     const featured = evs.filter(ev => ev._g !== 'prog');
     const chipsHtml = featured.slice(0, 5).map(ev =>
-      `<span class="wk-chip g-${ev._g}" data-g="${ev._g}" title="${ev.label}">${ev.label}</span>`).join('')
+      `<span class="wk-chip g-${ev._g}" data-g="${ev._g}" data-ev="${ev.id}" title="${ev.label}">${ev.label}</span>`).join('')
       + (featured.length > 5 ? `<span class="wk-chip-more">+${featured.length - 5}</span>` : '')
       + (featured.length === 0 ? `<span class="wk-quiet">no tentpoles — ongoing standard coverage only</span>` : '');
 
@@ -1504,7 +1578,7 @@ function buildWeekStrip(){
   strip.innerHTML = '';
   for (let n = 1; n <= 52; n++){
     const [s, e] = weekRange(n);
-    const evs = weekEventsAll(n).filter(ev => ev._g !== 'prog' && WK_FILTERS[ev._g]);
+    const evs = weekEventsAll(n).filter(ev => ev._g !== 'prog' && WK_FILTERS[ev._g] && evPassesLens(ev));
     const cell = document.createElement('div');
     cell.className = 'wk-cell';
     cell.title = `W${n} · ${fmtD(s)} – ${fmtD(e)} · ${evs.length} tentpole${evs.length===1?'':'s'}`;
@@ -1532,19 +1606,34 @@ function applyWeekFilters(){
     let visFeatured = 0, visProg = 0, visWh = 0;
     card.querySelectorAll('.wk-row').forEach(row => {
       const g = row.dataset.g;
-      const show = !!WK_FILTERS[g];
+      const ev = EV_BY_ID[row.dataset.evId];
+      const show = !!WK_FILTERS[g] && (!ev || evPassesLens(ev));
       row.style.display = show ? '' : 'none';
       const detail = row.nextElementSibling;
       if (!show && detail){ detail.style.display = 'none'; row.classList.remove('open'); }
       if (show){
         if (g === 'prog') visProg++;
         else { visFeatured++; if (g === 'wh') visWh++; }
+        // row meta: under the lens, show the selected shows' contribution
+        const meta = row.querySelector('.wk-row-meta');
+        if (meta && ev){
+          if (lensActive()){
+            const st = computeTentpoleStats(ev);
+            meta.textContent = `${evLensItems(ev)} of ${st.total} item${st.total===1?'':'s'} \u00B7 selected show${WK_SHOWS.size===1?'':'s'}`;
+          } else {
+            meta.textContent = evStatsBrief(ev);
+          }
+        }
       }
     });
-    // header chips follow the same filters
+    // header chips follow the same filters + lens
     card.querySelectorAll('.wk-chip').forEach(ch => {
-      ch.style.display = WK_FILTERS[ch.dataset.g] ? '' : 'none';
+      const ev = EV_BY_ID[ch.dataset.ev];
+      ch.style.display = (WK_FILTERS[ch.dataset.g] && (!ev || evPassesLens(ev))) ? '' : 'none';
     });
+    // the "+N" overflow badge is computed at build time and can't reflect the lens — hide it while a lens is active
+    const more = card.querySelector('.wk-chip-more');
+    if (more) more.style.display = lensActive() ? 'none' : '';
     const oh = card.querySelector('.wk-ongoing-h');
     if (oh) oh.style.display = (WK_FILTERS.prog && visProg) ? '' : 'none';
     // counts label
@@ -1553,7 +1642,7 @@ function applyWeekFilters(){
     if (tp) parts.push(`${tp} tentpole${tp===1?'':'s'}`);
     if (visWh) parts.push(`${visWh} warehouse`);
     if (visProg) parts.push(`${visProg} ongoing`);
-    card.querySelector('.wk-meta').textContent = parts.join(' · ') || 'quiet week';
+    card.querySelector('.wk-meta').textContent = parts.join(' \u00B7 ') || 'quiet week';
     card.querySelector('.wk-empty-f').style.display = (visFeatured + visProg) ? 'none' : 'block';
   });
   buildWeekStrip();
@@ -1665,8 +1754,56 @@ function tpToggleAll(btn){
   btn.textContent = tpAllOpen ? 'Collapse all' : 'Expand all';
 }
 
+// ── v51: CSV export (all data, ignores filters; mirrors in-app parsing) ──
+function tagLabels(tags){
+  const out = [];
+  let t = tags.slice();
+  if (t.includes('pod') && t.includes('yt')){ out.push('Pod + YT'); t = t.filter(x => x !== 'pod' && x !== 'yt'); }
+  else if (t.includes('pod')){ out.push('Podcast'); t = t.filter(x => x !== 'pod'); }
+  t.forEach(x => {
+    if (x === 'yt') out.push('YouTube');
+    if (x === 'live') out.push('Live');
+    if (x === 'soc') out.push('Social');
+  });
+  return out;
+}
+function csvCell(v){
+  v = String(v == null ? '' : v);
+  return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+}
+function exportCsv(){
+  const header = ['Event','Group','Category','Date Label','Start Date','End Date','Show','Content Item','Description','Content Type','Type Source','Unverified','Rev Tier'];
+  const d2 = (m, d) => `2027-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  const rows = [header];
+  EVENTS.forEach(ev => {
+    const g = GROUPS[ev._g].label;
+    const tier = ev.tier ? '$'.repeat(ev.tier) : '';
+    (ev.shows || []).forEach(s => {
+      (s.items || []).forEach(raw => {
+        const unv = raw.startsWith('[[UNVERIFIED]] ');
+        const item = unv ? raw.slice('[[UNVERIFIED]] '.length) : raw;
+        const p = parseItemText(item);
+        const ctype = p.explicitType ? p.explicitType : tagLabels(inferTags(item, s.name)).join(', ');
+        rows.push([ev.label, g, ev.category, ev.dateLabel, d2(ev.startM, ev.startD), d2(ev.endM, ev.endD),
+          s.name, p.title, p.desc || '', ctype, p.explicitType ? 'explicit' : 'inferred', unv ? 'Y' : '', tier]);
+      });
+    });
+  });
+  const csv = '\uFEFF' + rows.map(r => r.map(csvCell).join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'jm_2027_content_data.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(a.href);
+}
+
 // init
-document.getElementById('wk-chip-row').innerHTML = chipRowHtml('wk', WK_FILTERS);
+document.getElementById('wk-chip-row').innerHTML = chipRowHtml('wk', WK_FILTERS)
+  + `<span class="viz-chip" id="wk-show-lens-btn" onclick="toggleShowLensRow()">Filter by show \u25BE</span>`;
+buildShowChips();
 document.getElementById('tp-chip-row').innerHTML = chipRowHtml('tp', TP_FILTERS, ['mlb','nfl']);
 buildWeekView();
 buildTentpoleView();
